@@ -6,7 +6,6 @@ const Main = imports.ui.main;
 const PanelMenu = imports.ui.panelMenu;
 const PopupMenu = imports.ui.popupMenu;
 const Util = imports.misc.util;
-const ByteArray = imports.byteArray;
 const ExtensionUtils = imports.misc.extensionUtils;
 
 const Me = ExtensionUtils.getCurrentExtension();
@@ -56,6 +55,16 @@ function severityStyleClass(percent) {
 
 function formatClock(date) {
     return '%02d:%02d'.format(date.getHours(), date.getMinutes());
+}
+
+// Credentials file content is plain ASCII (JSON with tokens/timestamps), so a
+// byte-for-byte decode avoids depending on the deprecated ByteArray module
+// (TextDecoder isn't available on the pre-45 GJS this extension also targets).
+function bytesToString(bytes) {
+    let result = '';
+    for (let i = 0; i < bytes.length; i++)
+        result += String.fromCharCode(bytes[i]);
+    return result;
 }
 
 const UsageMenuItem = GObject.registerClass(
@@ -162,41 +171,42 @@ class Indicator extends PanelMenu.Button {
     _refresh() {
         const credPath = this._credentialsPath();
         const file = Gio.File.new_for_path(credPath);
-        if (!file.query_exists(null)) {
-            this._setError('Claude Code credentials not found');
-            return;
-        }
 
-        let text;
-        try {
-            const [, bytes] = file.load_contents(null);
-            text = ByteArray.toString(bytes);
-        } catch (e) {
-            this._setError('Could not read credentials file');
-            return;
-        }
+        file.load_contents_async(null, (_source, result) => {
+            let bytes;
+            try {
+                [, bytes] = file.load_contents_finish(result);
+            } catch (e) {
+                this._setError('Claude Code credentials not found');
+                return;
+            }
 
-        let creds;
-        try {
-            creds = JSON.parse(text);
-        } catch (e) {
-            this._setError('Credentials file is not valid JSON');
-            return;
-        }
+            let creds;
+            try {
+                creds = JSON.parse(bytesToString(bytes));
+            } catch (e) {
+                this._setError('Credentials file is not valid JSON');
+                return;
+            }
 
-        const oauth = creds.claudeAiOauth;
-        if (!oauth || !oauth.accessToken) {
-            this._setError('No Claude Code session found — run "claude" to log in');
-            return;
-        }
+            const oauth = creds.claudeAiOauth;
+            if (!oauth || !oauth.accessToken) {
+                this._setError('No Claude Code session found — run "claude" to log in');
+                return;
+            }
 
-        if (oauth.expiresAt && Date.now() > oauth.expiresAt) {
-            this._setError('Claude Code session expired — run "claude" to refresh');
-            return;
-        }
+            if (oauth.expiresAt && Date.now() > oauth.expiresAt) {
+                this._setError('Claude Code session expired — run "claude" to refresh');
+                return;
+            }
 
+            this._fetchUsage(oauth.accessToken);
+        });
+    }
+
+    _fetchUsage(accessToken) {
         const message = Soup.Message.new('GET', USAGE_URL);
-        message.request_headers.append('Authorization', `Bearer ${oauth.accessToken}`);
+        message.request_headers.append('Authorization', `Bearer ${accessToken}`);
         message.request_headers.append('anthropic-beta', OAUTH_BETA_HEADER);
         message.request_headers.append('Content-Type', 'application/json');
 
