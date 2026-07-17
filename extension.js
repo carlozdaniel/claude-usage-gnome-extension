@@ -129,7 +129,7 @@ class Indicator extends PanelMenu.Button {
         ];
 
         this.connect('destroy', () => this._onDestroy());
-        this.menu.connect('open-state-changed', (menu, isOpen) => {
+        this._menuOpenSignal = this.menu.connect('open-state-changed', (menu, isOpen) => {
             if (isOpen)
                 this._refresh();
         });
@@ -313,11 +313,17 @@ class Indicator extends PanelMenu.Button {
         this.menu.addMenuItem(footer);
     }
 
+    // Called via the 'destroy' signal, which disable() triggers by calling
+    // this.destroy() — this is where every source/signal opened above is torn down.
     _onDestroy() {
         this._stopRefreshLoop();
         if (this._httpSession) {
             this._httpSession.abort();
             this._httpSession = null;
+        }
+        if (this._menuOpenSignal) {
+            this.menu.disconnect(this._menuOpenSignal);
+            this._menuOpenSignal = null;
         }
         if (this._settingsSignals) {
             this._settingsSignals.forEach(id => this._settings.disconnect(id));
