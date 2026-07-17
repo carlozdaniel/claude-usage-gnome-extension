@@ -1,0 +1,48 @@
+.claude-usage-panel-box {
+    spacing: 4px;
+}
+
+.claude-usage-panel-icon {
+    icon-size: 16px;
+}
+
+.claude-usage-panel-label {
+    font-weight: bold;
+    padding-left: 2px;
+}
+
+.claude-usage-item-title {
+    font-weight: bold;
+}
+
+.claude-usage-item-subtitle {
+    font-size: 0.85em;
+    opacity: 0.6;
+}
+
+.claude-usage-item-percent {
+    font-weight: bold;
+    font-size: 1.1em;
+    padding-left: 12px;
+}
+
+.claude-usage-footer-label {
+    font-size: 0.85em;
+    opacity: 0.6;
+}
+
+.claude-usage-footer-button {
+    padding: 4px;
+}
+
+.claude-usage-normal {
+    color: inherit;
+}
+
+.claude-usage-warning {
+    color: #f5a623;
+}
+
+.claude-usage-critical {
+    color: #e01b24;
+}
