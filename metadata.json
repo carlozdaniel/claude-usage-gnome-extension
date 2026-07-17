@@ -2,7 +2,7 @@
   "uuid": "claude-usage@michilapsiodev",
   "name": "Claude Usage",
   "description": "Track Claude Pro usage from the GNOME top bar: current session percentage in the panel, plus a menu with every active limit (session, weekly, per-model) and reset times. Fully customizable panel icon.",
-  "version": 2,
+  "version": 3,
   "shell-version": [ "3.36", "3.38" ],
   "url": "https://github.com/carlozdaniel/claude-usage-gnome-extension",
   "settings-schema": "org.gnome.shell.extensions.claude-usage"
