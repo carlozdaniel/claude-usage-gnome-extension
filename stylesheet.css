@@ -46,3 +46,8 @@
 .claude-usage-critical {
     color: #e01b24;
 }
+
+.claude-usage-stale-warning {
+    font-size: 0.85em;
+    color: #f5a623;
+}

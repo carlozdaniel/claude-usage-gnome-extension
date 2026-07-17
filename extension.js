@@ -13,7 +13,7 @@ const Me = ExtensionUtils.getCurrentExtension();
 
 const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 const OAUTH_BETA_HEADER = 'oauth-2025-04-20';
-const DEFAULT_ICON_PATH = Me.dir.get_child('icons').get_child('claude-usage-symbolic.svg').get_path();
+const DEFAULT_ICON_PATH = Me.dir.get_child('icons').get_child('claude-logo.png').get_path();
 
 function humanizeKind(limit) {
     if (limit.kind === 'session')
@@ -110,7 +110,7 @@ class Indicator extends PanelMenu.Button {
         this.add_child(box);
 
         this._updateIcon();
-        this._rebuildMenu(null, null);
+        this._rebuildMenu();
 
         this._settingsSignals = [
             this._settings.connect('changed::icon-path', () => this._updateIcon()),
@@ -120,6 +120,10 @@ class Indicator extends PanelMenu.Button {
         ];
 
         this.connect('destroy', () => this._onDestroy());
+        this.menu.connect('open-state-changed', (menu, isOpen) => {
+            if (isOpen)
+                this._refresh();
+        });
 
         this._startRefreshLoop();
     }
@@ -225,14 +229,16 @@ class Indicator extends PanelMenu.Button {
         this._lastUsage = usage;
         this._lastUpdated = formatClock(new Date());
         this._applyUsageToPanel();
-        this._rebuildMenu(usage, null);
+        this._rebuildMenu();
     }
 
     _setError(msg) {
         this._lastError = msg;
-        this._percentLabel.text = '!';
-        this._percentLabel.style_class = 'claude-usage-panel-label claude-usage-critical';
-        this._rebuildMenu(null, msg);
+        if (!this._lastUsage) {
+            this._percentLabel.text = '!';
+            this._percentLabel.style_class = 'claude-usage-panel-label claude-usage-critical';
+        }
+        this._rebuildMenu();
     }
 
     _applyUsageToPanel() {
@@ -250,13 +256,18 @@ class Indicator extends PanelMenu.Button {
         }
     }
 
-    _rebuildMenu(usage, errorMsg) {
+    _rebuildMenu() {
         this.menu.removeAll();
 
-        if (errorMsg) {
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(errorMsg, { reactive: false }));
-        } else if (usage && usage.limits && usage.limits.length > 0) {
-            usage.limits.forEach(limit => this.menu.addMenuItem(new UsageMenuItem(limit)));
+        const limits = this._lastUsage && this._lastUsage.limits;
+        if (limits && limits.length > 0) {
+            limits.forEach(limit => this.menu.addMenuItem(new UsageMenuItem(limit)));
+            if (this._lastError) {
+                this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
+                    `⚠ ${this._lastError}`, { reactive: false, style_class: 'claude-usage-stale-warning' }));
+            }
+        } else if (this._lastError) {
+            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(this._lastError, { reactive: false }));
         } else {
             this.menu.addMenuItem(new PopupMenu.PopupMenuItem('Loading…', { reactive: false }));
         }

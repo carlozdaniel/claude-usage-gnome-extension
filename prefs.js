@@ -1,10 +1,25 @@
 'use strict';
 
-const { Gtk, Gio, GLib } = imports.gi;
+const { Gtk, Gio, GLib, GdkPixbuf } = imports.gi;
 const ExtensionUtils = imports.misc.extensionUtils;
 const Me = ExtensionUtils.getCurrentExtension();
 
 function init() {
+}
+
+function scaledPixbuf(path, size) {
+    try {
+        return GdkPixbuf.Pixbuf.new_from_file_at_scale(path, size, size, true);
+    } catch (e) {
+        return null;
+    }
+}
+
+function scaledImage(path, size) {
+    const pixbuf = scaledPixbuf(path, size);
+    return pixbuf
+        ? Gtk.Image.new_from_pixbuf(pixbuf)
+        : new Gtk.Image({ icon_name: 'image-x-generic-symbolic', pixel_size: size });
 }
 
 function buildPrefsWidget() {
@@ -21,20 +36,41 @@ function buildPrefsWidget() {
     let row = 0;
 
     // --- Custom panel icon ---
-    const iconLabel = new Gtk.Label({ label: 'Panel icon', halign: Gtk.Align.START });
+    const iconsDir = Me.dir.get_child('icons');
+    const PRESETS = [
+        { name: 'Claude (default)', path: iconsDir.get_child('claude-logo.png').get_path() },
+        { name: 'Car', path: iconsDir.get_child('car-icon.png').get_path() },
+        { name: 'Sparkle (original)', path: iconsDir.get_child('claude-usage-symbolic.svg').get_path() },
+    ];
+
+    const iconLabel = new Gtk.Label({ label: 'Panel icon', halign: Gtk.Align.START, valign: Gtk.Align.START });
     page.attach(iconLabel, 0, row, 1, 1);
 
-    const iconBox = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 8 });
+    const iconColumn = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 8 });
 
-    const iconPreview = new Gtk.Image({ pixel_size: 24 });
     const currentPath = settings.get_string('icon-path');
-    if (currentPath && GLib.file_test(currentPath, GLib.FileTest.EXISTS))
-        iconPreview.set_from_file(currentPath);
-    else
-        iconPreview.set_from_icon_name('image-x-generic-symbolic', Gtk.IconSize.LARGE_TOOLBAR);
-    iconBox.pack_start(iconPreview, false, false, 0);
+    const iconPreview = scaledImage(currentPath || PRESETS[0].path, 32);
 
-    const chooseBtn = new Gtk.Button({ label: 'Choose image…' });
+    const presetRow = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 6 });
+    const presetButtons = [];
+    PRESETS.forEach(preset => {
+        const btn = new Gtk.Button({ tooltip_text: preset.name, width_request: 44, height_request: 44 });
+        btn.set_image(scaledImage(preset.path, 28));
+        btn.set_always_show_image(true);
+        btn.get_style_context().add_class('flat');
+        if ((currentPath || PRESETS[0].path) === preset.path)
+            btn.get_style_context().add_class('suggested-action');
+        btn.connect('clicked', () => {
+            settings.set_string('icon-path', preset === PRESETS[0] ? '' : preset.path);
+            iconPreview.set_from_pixbuf(scaledPixbuf(preset.path, 32));
+            presetButtons.forEach(b => b.button.get_style_context().remove_class('suggested-action'));
+            btn.get_style_context().add_class('suggested-action');
+        });
+        presetButtons.push({ button: btn, preset });
+        presetRow.pack_start(btn, false, false, 0);
+    });
+
+    const chooseBtn = new Gtk.Button({ label: 'Choose custom image…' });
     chooseBtn.connect('clicked', () => {
         const dialog = new Gtk.FileChooserDialog({
             title: 'Select a panel icon',
@@ -56,22 +92,22 @@ function buildPrefsWidget() {
                 const file = dlg.get_file();
                 const path = file.get_path();
                 settings.set_string('icon-path', path);
-                iconPreview.set_from_file(path);
+                iconPreview.set_from_pixbuf(scaledPixbuf(path, 32));
+                presetButtons.forEach(b => b.button.get_style_context().remove_class('suggested-action'));
             }
             dlg.destroy();
         });
         dialog.show();
     });
-    iconBox.pack_start(chooseBtn, false, false, 0);
 
-    const resetBtn = new Gtk.Button({ label: 'Use default icon' });
-    resetBtn.connect('clicked', () => {
-        settings.set_string('icon-path', '');
-        iconPreview.set_from_icon_name('image-x-generic-symbolic', Gtk.IconSize.LARGE_TOOLBAR);
-    });
-    iconBox.pack_start(resetBtn, false, false, 0);
+    const previewRow = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 8 });
+    previewRow.pack_start(iconPreview, false, false, 0);
+    previewRow.pack_start(chooseBtn, false, false, 0);
 
-    page.attach(iconBox, 1, row, 1, 1);
+    iconColumn.pack_start(presetRow, false, false, 0);
+    iconColumn.pack_start(previewRow, false, false, 0);
+
+    page.attach(iconColumn, 1, row, 1, 1);
     row++;
 
     // --- Show percentage in panel ---
